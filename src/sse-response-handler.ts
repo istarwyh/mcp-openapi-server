@@ -5,74 +5,50 @@ import { ExtendedTool, RequestConfig } from "./types.js";
 import { log } from "./logger.js";
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { ErrorCode, JSONRPCMessage, McpError, SamplingMessage, SamplingMessageSchema } from '@modelcontextprotocol/sdk/types.js';
+import { extractIteratorFromQuotes, extractTextFromQuotes } from "./utils.js";
 
-export function parseSSEEvent(chunk: string): string{
+export function parseSSEEvent(chunk: string): string {
+  if (!chunk.startsWith("data:"))
+    return chunk;
   return chunk.slice(5).trim();
 }
-
+// 权宜之计，真的SSE连接暂时不知道
 export async function handleSSEResponse(
   tool: ExtendedTool,
   response: AxiosResponse
 ): Promise<SamplingMessage> {
-  const stream:string = response.data;
-  const lines: string[] = stream.split('\n\n');
-  
+  const stream: string = response.data;
+  const textChunks: string[] = extractTextFromQuotes(stream);
+  const iteratorChunks: string[] = extractIteratorFromQuotes(stream);
+  const lines: string[] = stream.trim().split('\n\n');
+  const contentArray: any[] = []
+  let chunks = textChunks;
+  if (textChunks.length > 0) {
+    chunks = textChunks;
+  } else if (iteratorChunks.length > 0) {
+    chunks = iteratorChunks;
+  } else {
+    chunks = lines;
+  }
   return new Promise((resolve, reject) => {
-    lines.forEach((chunk: string) => {
+    chunks.forEach((chunk: string) => {
       try {
         const rawChunk = chunk.toString();
-        log("Received SSE chunk",rawChunk);
-
-        const event:string = parseSSEEvent(rawChunk);
-        resolve({
-            role:"assistant",
-            content:[{
-              type:"text",
-              text:event
-            }]
-        });
+        log("Received SSE chunk", rawChunk);
+        const event: string = parseSSEEvent(rawChunk);
+        if (event.trim() === "") return;
+        contentArray.push({
+          type: "text",
+          text: event
+        })
       } catch (error) {
-        log("Error processing SSE chunk",error);
+        log("Error processing SSE chunk", error);
         reject(new McpError(ErrorCode.InternalError, error.message));
       }
     });
-
+    resolve({
+      role: "assistant",
+      content: contentArray
+    });
   });
-}
-
-export function createSendEvent(transport: SSEServerTransport): (event: any) => void {
-  return (event) => {
-    try {
-      const message: JSONRPCMessage = {
-        jsonrpc: '2.0',
-        method: event.method, 
-        params: {
-          type: event.event || 'message',
-          data: event.data,
-          id: event.id,
-          timestamp: event.timestamp
-        }
-      };
-      transport.send(message);
-    } catch (error) {
-      console.error('Failed to send SSE event:', error);
-      
-      // 发送错误消息
-      const errorMessage: JSONRPCMessage = {
-        jsonrpc: '2.0',
-        method: event.method,
-        params: {
-          type: 'error',
-          error: {
-            message: error.message,
-            code: 'SSE_SEND_ERROR'
-          },
-          id: event.id,
-          timestamp: new Date().toISOString()
-        }
-      };
-      
-      transport.send(errorMessage);
-    }
-  };
 }

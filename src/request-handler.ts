@@ -7,7 +7,7 @@ import { OpenAPIV3 } from "openapi-types";
 import { ExtendedTool, RequestConfig } from "./types.js";
 import { log } from "./logger.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
-import { createSendEvent, handleSSEResponse } from "./sse-response-handler.js";
+import { handleSSEResponse } from "./sse-response-handler.js";
 
 /**
  * 递归地应用默认值到请求体
@@ -150,13 +150,7 @@ export function buildRequestBody(
   } else {
     requestBody = processGeneric(args);
   }
-  // requestBody = processWithSchema(args, tool.metadata.requestBodySchema);
-
-  log(`Before request body:`, requestBody,defaults);
-
-  // 应用环境变量默认值
   applyEnvironmentDefaults(requestBody, defaults);
-  
   log(`Final request body:`, requestBody);
   return requestBody;
 }
@@ -183,7 +177,6 @@ export async function executeToolCall(
       logResponse(response);
       // 检查是否是 SSE 流
       if (response.headers['content-type']?.includes('text/event-stream')) {
-        log('Received SSE response');
         return handleSSEResponse(tool, response);
       }
       return {
