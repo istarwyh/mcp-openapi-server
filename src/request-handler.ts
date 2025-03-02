@@ -6,6 +6,8 @@ import axios, { AxiosResponse } from "axios";
 import { OpenAPIV3 } from "openapi-types";
 import { ExtendedTool, RequestConfig } from "./types.js";
 import { log } from "./logger.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { createSendEvent, handleSSEResponse } from "./sse-response-handler.js";
 
 /**
  * 递归地应用默认值到请求体
@@ -110,17 +112,14 @@ function processWithSchema(
  */
 function processGeneric(args: Record<string, any>): Record<string, any> {
   const requestBody: Record<string, any> = {};
-  
   for (const [key, value] of Object.entries(args)) {
     // 检查是否是嵌套参数（包含下划线）
     if (key.includes("_")) {
-      const [parentKey, childKey] = key.split("_", 2);
-      
+      const [parentKey, childKey] = key.split("_", 2);   
       // 如果父对象不存在，则初始化它
       if (!requestBody[parentKey]) {
         requestBody[parentKey] = {};
       }
-      
       // 将子属性添加到父对象中
       requestBody[parentKey][childKey] = value;
     } else {
@@ -179,11 +178,16 @@ export async function executeToolCall(
     const config: RequestConfig = buidlConfig();
     let response;
     try {
+      
       response = await axios(config);
       logResponse(response);
+      // 检查是否是 SSE 流
+      if (response.headers['content-type']?.includes('text/event-stream')) {
+        log('Received SSE response');
+        return handleSSEResponse(tool, response);
+      }
       return {
-        method: tool.metadata.method,
-        result: response.data,
+        content: [{type:'text',text:response.data}],
         id: tool.name,
         timestamp: new Date().toISOString()
       };

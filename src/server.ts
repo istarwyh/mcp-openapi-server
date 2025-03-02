@@ -105,6 +105,14 @@ export class OpenAPIMCPServer {
         throw new Error(errorMsg);
       }
       log(`Executing tool: ${name} with args:`, args);
+      this.server.notification({
+        method: 'notifications/progress',
+        params: {
+          progressToken: '',
+          toolName: tool.name,
+          progress: 0
+        }
+      })
       try {
         return await executeToolCall(
           tool,

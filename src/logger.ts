@@ -272,7 +272,6 @@ function formatLogMessage(message: string, args: any[]): string {
 
 /**
  * 兼容旧的log函数
- * @deprecated 使用新的日志级别函数代替
  */
 export function log(message: string, ...args: any[]): void {
   info(message, ...args);
