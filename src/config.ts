@@ -47,6 +47,20 @@ export function parseEnvironmentDefaults(): Record<string, any> {
   return defaults;
 }
 
+
+function parseHeaders(headerStr?: string): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (headerStr) {
+    headerStr.split(",").forEach((header) => {
+      const [key, value] = header.split(":");
+      if (key && value) headers[key.trim()] = value.trim();
+    });
+  }
+  headers['Content-Type'] = 'application/json';
+  return headers;
+}
+
+
 /**
  * 获取服务器配置
  * 合并命令行参数、环境变量和默认值
@@ -60,17 +74,28 @@ export function getConfig(argv: Record<string, any> = {}): {
   defaults: Record<string, any>;
 } {
   const defaults = parseEnvironmentDefaults();
-  
+  const headers = parseHeaders(argv.headers || process.env.API_HEADERS);
+
   const config = {
     apiBaseUrl: argv['api-base-url'] || process.env.API_BASE_URL,
     openApiSpec: argv['openapi-spec'] || process.env.OPENAPI_SPEC_PATH,
     name: argv.name || process.env.SERVER_NAME,
     serverVersion: argv['server-version'] || process.env.SERVER_VERSION,
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: headers,
     defaults,
   };
+
+  if (!config.apiBaseUrl) {
+    throw new Error(
+      "API base URL is required (--api-base-url or API_BASE_URL)",
+    );
+  }
+  if (!config.openApiSpec) {
+    throw new Error(
+      "OpenAPI spec is required (--openapi-spec or OPENAPI_SPEC_PATH)",
+    );
+  }
+
   
   if (typeof log === 'function') {
     log(`Environment defaults:`, defaults);
