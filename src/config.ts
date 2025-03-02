@@ -39,7 +39,7 @@ export function parseEnvironmentDefaults(): Record<string, any> {
         }
       }
       
-      defaults[paramName.toLowerCase()] = parsedValue;
+      defaults[paramName] = parsedValue;
       
     }
   }
