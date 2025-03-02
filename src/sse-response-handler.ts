@@ -34,9 +34,9 @@ export async function handleSSEResponse(
     chunks.forEach((chunk: string) => {
       try {
         const rawChunk = chunk.toString();
+        if (rawChunk.trim() === "") return;
         log("Received SSE chunk", rawChunk);
         const event: string = parseSSEEvent(rawChunk);
-        if (event.trim() === "") return;
         contentArray.push({
           type: "text",
           text: event

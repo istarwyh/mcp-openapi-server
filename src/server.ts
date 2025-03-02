@@ -4,7 +4,7 @@
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { ListToolsRequestSchema, CallToolRequestSchema, ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { Config, ExtendedTool } from "./types.js";
 import { parseOpenAPISpec } from "./openapi-parser.js";
 import { executeToolCall } from "./request-handler.js";
@@ -100,10 +100,11 @@ export class OpenAPIMCPServer {
       const { name, arguments: args } = request.params;
       const tool = this.tools.get(name);
       if (!tool) {
-        const errorMsg = `Tool not found: ${name}`;
-        log(errorMsg);
-        throw new Error(errorMsg);
+        throw new McpError (ErrorCode.InvalidParams,`Tool not found: ${name}`);
       }
+      // if (!args || args.length === 0) {
+      //   throw new McpError(ErrorCode.InvalidRequest,`args is undefined`);
+      // }
       log(`Executing tool: ${name} with args:`, args);
       this.server.notification({
         method: 'notifications/progress',

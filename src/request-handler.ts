@@ -8,6 +8,7 @@ import { ExtendedTool, RequestConfig } from "./types.js";
 import { log } from "./logger.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { handleSSEResponse } from "./sse-response-handler.js";
+import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 
 /**
  * 递归地应用默认值到请求体
@@ -15,7 +16,7 @@ import { handleSSEResponse } from "./sse-response-handler.js";
 export function applyEnvironmentDefaults(requestBody: Record<string, any>, envDefaults: Record<string, any>): void {
   for (const [key, defaultValue] of Object.entries(envDefaults)) {
     // 如果请求体中没有该属性，则使用默认值
-    if (requestBody[key] === undefined) {
+    if (typeof defaultValue !== "object" && defaultValue !== null) {
       requestBody[key] = defaultValue;
     } else if (typeof defaultValue === "object" && defaultValue !== null && !Array.isArray(defaultValue)) {
       // 如果默认值是对象，则递归应用
@@ -27,35 +28,6 @@ export function applyEnvironmentDefaults(requestBody: Record<string, any>, envDe
       applyEnvironmentDefaults(requestBody[key], defaultValue);
     }
   }
-}
-
-/**
- * 检查参数是否包含嵌套结构
- */
-function hasNestedStructure(args: Record<string, any>): boolean {
-  return Object.entries(args).some(([_, value]) => 
-    typeof value === "object" && value !== null && !Array.isArray(value)
-  );
-}
-
-/**
- * 处理已有嵌套结构的参数
- */
-function processNestedStructure(args: Record<string, any>): Record<string, any> {
-  const requestBody = { ...args };
-  
-  // 处理可能的扁平参数
-  for (const [key, value] of Object.entries(args)) {
-    if (key.includes("_") && typeof value !== "object") {
-      const [parent, child] = key.split("_", 2);
-      if (!requestBody[parent]) {
-        requestBody[parent] = {};
-      }
-      requestBody[parent][child] = value;
-    }
-  }
-  
-  return requestBody;
 }
 
 /**
@@ -143,11 +115,11 @@ export function buildRequestBody(
   log(`buildRequestBody args & defaults:`, args,defaults);
 
   // 根据参数结构和工具元数据选择处理策略
-  if (hasNestedStructure(args)) {
-    requestBody = processNestedStructure(args);
-  } else if (tool.metadata?.requestBodySchema) {
+  if (tool.metadata?.requestBodySchema) {
+    // throw new McpError(ErrorCode.InvalidRequest,`args requestBodySchema`);
     requestBody = processWithSchema(args, tool.metadata.requestBodySchema);
   } else {
+    // throw new McpError(ErrorCode.InvalidRequest,`args generic`);
     requestBody = processGeneric(args);
   }
   applyEnvironmentDefaults(requestBody, defaults);
