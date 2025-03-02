@@ -181,7 +181,12 @@ export async function executeToolCall(
     try {
       response = await axios(config);
       logResponse(response);
-      return response.data;
+      return {
+        method: tool.metadata.method,
+        result: response.data,
+        id: tool.name,
+        timestamp: new Date().toISOString()
+      };
     } catch (requestError: any) {
       handleRequestError(requestError);
     }
