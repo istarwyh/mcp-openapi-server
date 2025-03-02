@@ -2,7 +2,7 @@
  * 请求处理模块 - 负责处理 API 请求和响应
  */
 
-import axios from "axios";
+import axios, { AxiosResponse } from "axios";
 import { OpenAPIV3 } from "openapi-types";
 import { ExtendedTool, RequestConfig } from "./types.js";
 import { log } from "./logger.js";
@@ -66,10 +66,11 @@ function processNestedProperties(
   requestBody: Record<string, any>
 ): void {
   if (!propSchemaObj.properties) return;
-  
   for (const [nestedPropName, _] of Object.entries(propSchemaObj.properties)) {
     const paramName = `${propName}_${nestedPropName}`;
-    
+    if (requestBody[propName] === undefined) {
+      requestBody[propName] = {};
+    }
     // 优先使用请求参数中的值
     if (args[paramName] !== undefined) {
       requestBody[propName][nestedPropName] = args[paramName];
@@ -88,29 +89,19 @@ function processWithSchema(
   schema: any
 ): Record<string, any> {
   const requestBody: Record<string, any> = {};
-  
   if (!schema.properties) return requestBody;
-  
   for (const [propName, propSchema] of Object.entries(schema.properties)) {
     const propSchemaObj = propSchema as OpenAPIV3.SchemaObject;
-    
-    // 初始化顶层对象
-    if (!requestBody[propName]) {
-      requestBody[propName] = {};
-    }
-    
     // 处理嵌套对象
     if (propSchemaObj.type === "object" && propSchemaObj.properties) {
       processNestedProperties(propName, propSchemaObj, args, requestBody);
     } else {
       // 处理顶层属性
-      // 优先使用请求参数
       if (args[propName] !== undefined) {
         requestBody[propName] = args[propName];
       }
     }
   }
-  
   return requestBody;
 }
 
@@ -150,7 +141,8 @@ export function buildRequestBody(
   defaults: Record<string, any>
 ): Record<string, any> {
   let requestBody: Record<string, any>;
-  
+  log(`buildRequestBody args & defaults:`, args,defaults);
+
   // 根据参数结构和工具元数据选择处理策略
   if (hasNestedStructure(args)) {
     requestBody = processNestedStructure(args);
@@ -159,7 +151,10 @@ export function buildRequestBody(
   } else {
     requestBody = processGeneric(args);
   }
-  
+  // requestBody = processWithSchema(args, tool.metadata.requestBodySchema);
+
+  log(`Before request body:`, requestBody,defaults);
+
   // 应用环境变量默认值
   applyEnvironmentDefaults(requestBody, defaults);
   
@@ -178,29 +173,47 @@ export async function executeToolCall(
   defaults: Record<string, any>
 ): Promise<any> {
   try {
-    if (!tool.metadata) {
-      throw new Error(`Tool ${tool.name} is missing metadata`);
+    if (!tool.metadata || !tool.metadata.method || !tool.metadata.originalPath) {
+      throw new Error(`Tool ${tool.name} is missing metadata or method or originalPath`);
     }
-    
-    if (!tool.metadata.method) {
-      throw new Error(`Tool ${tool.name} is missing HTTP method in metadata`);
+    const config: RequestConfig = buidlConfig();
+    let response;
+    try {
+      response = await axios(config);
+      logResponse(response);
+      return response.data;
+    } catch (requestError: any) {
+      handleRequestError(requestError);
     }
-    
-    if (!tool.metadata.originalPath) {
-      throw new Error(`Tool ${tool.name} is missing originalPath in metadata`);
+  } catch (error: any) {
+    const errorMessage = error instanceof Error 
+      ? `Error executing tool ${tool.name}: ${error.message}\n${error.stack}`
+      : `Error executing tool ${tool.name}: ${error}`;
+      
+    log(errorMessage);
+    throw new Error(errorMessage);
+  }
+
+  function logResponse(response: AxiosResponse<any, any>) {
+    log(`Status code: ${response.status}`);
+    log(`Response headers: ${JSON.stringify(response.headers, null, 2)}`);
+    // 安全地记录响应数据，避免过大的日志
+    const responseDataString = JSON.stringify(response.data);
+    if (responseDataString.length > 1000) {
+      log(`Response data (truncated): ${responseDataString.substring(0, 1000)}...`);
+    } else {
+      log(`Response data: ${responseDataString}`);
     }
-    
-    // 构建请求配置
+  }
+
+  function buidlConfig() {
     const config: RequestConfig = {
       method: tool.metadata.method,
       url: `${apiBaseUrl}${tool.metadata.originalPath}`,
       headers: { ...headers },
     };
-    
-    // 记录请求参数
     log(`Tool call: ${tool.name}`);
     log(`Request arguments:`, JSON.stringify(args, null, 2));
-    
     if (config.method === "GET" || config.method === "DELETE") {
       config.params = args;
     } else {
@@ -211,65 +224,36 @@ export async function executeToolCall(
         config.data = args;
       }
     }
-    
     log(`Sending request to: ${config.url}`);
-    log(`HTTP method: ${config.method}`);
     log(`Headers: ${JSON.stringify(config.headers, null, 2)}`);
-    
     if (config.params) {
       log(`Query parameters: ${JSON.stringify(config.params, null, 2)}`);
     }
-    
+
     if (config.data) {
       log(`Request body: ${JSON.stringify(config.data, null, 2)}`);
     }
-    
-    // 发送请求
-    let response;
-    try {
-      response = await axios(config);
-      
-      log(`Response received successfully`);
-      log(`Status code: ${response.status}`);
-      log(`Response headers: ${JSON.stringify(response.headers, null, 2)}`);
-      
-      // 安全地记录响应数据，避免过大的日志
-      const responseDataString = JSON.stringify(response.data);
-      if (responseDataString.length > 1000) {
-        log(`Response data (truncated): ${responseDataString.substring(0, 1000)}...`);
-      } else {
-        log(`Response data: ${responseDataString}`);
-      }
-      
-      return response.data;
-    } catch (requestError: any) {
-      // 详细记录请求错误
-      log(`HTTP request error for tool ${tool.name}:`);
-      
-      if (requestError.response) {
-        // 服务器响应了错误状态码
-        log(`Status: ${requestError.response.status}`);
-        log(`Status text: ${requestError.response.statusText}`);
-        log(`Response headers: ${JSON.stringify(requestError.response.headers, null, 2)}`);
-        log(`Response data: ${JSON.stringify(requestError.response.data, null, 2)}`);
-      } else if (requestError.request) {
-        // 请求已发送但没有收到响应
-        log(`No response received from server`);
-        log(`Request details: ${JSON.stringify(requestError.request, null, 2)}`);
-      } else {
-        // 设置请求时发生错误
-        log(`Error setting up request: ${requestError.message}`);
-      }
-      
-      // 重新抛出错误，包含更多上下文
-      throw new Error(`Failed to execute tool ${tool.name}: ${requestError.message}`);
+    return config;
+  }
+
+  function handleRequestError(requestError: any) {
+    log(`HTTP request error for tool ${tool.name}:`);
+    if (requestError.response) {
+      // 服务器响应了错误状态码
+      log(`Status: ${requestError.response.status}`);
+      log(`Status text: ${requestError.response.statusText}`);
+      log(`Response headers: ${JSON.stringify(requestError.response.headers, null, 2)}`);
+      log(`Response data: ${JSON.stringify(requestError.response.data, null, 2)}`);
+    } else if (requestError.request) {
+      // 请求已发送但没有收到响应
+      log(`No response received from server`);
+      log(`Request details: ${JSON.stringify(requestError.request, null, 2)}`);
+    } else {
+      // 设置请求时发生错误
+      log(`Error setting up request: ${requestError.message}`);
     }
-  } catch (error: any) {
-    const errorMessage = error instanceof Error 
-      ? `Error executing tool ${tool.name}: ${error.message}\n${error.stack}`
-      : `Error executing tool ${tool.name}: ${error}`;
-      
-    log(errorMessage);
-    throw new Error(errorMessage);
+
+    // 重新抛出错误，包含更多上下文
+    throw new Error(`Failed to execute tool ${tool.name}: ${requestError.message}`);
   }
 }

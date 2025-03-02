@@ -12,7 +12,7 @@ export interface ExtendedTool {
   description: string;
   parameters: Record<string, any>;
   inputSchema?: any;
-  metadata?: {
+  metadata: {
     originalPath: string;
     requestBodySchema: any;
     method: string;

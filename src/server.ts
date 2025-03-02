@@ -98,18 +98,13 @@ export class OpenAPIMCPServer {
     // 注册工具调用处理程序
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
-      
-      // 查找工具
       const tool = this.tools.get(name);
       if (!tool) {
         const errorMsg = `Tool not found: ${name}`;
         log(errorMsg);
         throw new Error(errorMsg);
       }
-      
       log(`Executing tool: ${name} with args:`, args);
-      
-      // 执行工具调用
       try {
         return await executeToolCall(
           tool,
@@ -155,32 +150,22 @@ export class OpenAPIMCPServer {
         log(`Error parsing OpenAPI spec: ${error}`);
         throw error;
       }
-      
-      // 初始化处理程序
-      log("Initializing handlers...");
       this.initializeHandlers();
-      
       log(`Starting MCP server with ${this.tools.size} tools`);
-      
       // 创建传输层
       log("Creating transport...");
       this.transport = new StdioServerTransport();
-      
       // 连接到传输层
       log("Connecting to transport...");
-      
       // 添加超时处理
       const connectionPromise = this.server.connect(this.transport);
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => reject(new Error('Connection timeout after 30 seconds')), 30000);
       });
-      
       // 使用Promise.race来处理连接超时
       await Promise.race([connectionPromise, timeoutPromise])
         .then(() => {
           log(`MCP server connected successfully via stdio transport`);
-          
-          // 验证连接状态
           setTimeout(() => {
             this.verifyConnection();
           }, 1000);
@@ -209,9 +194,7 @@ export class OpenAPIMCPServer {
       // 检查stdio流状态
       const stdinReadable = !process.stdin.destroyed && process.stdin.readable;
       const stdoutWritable = !process.stdout.destroyed && process.stdout.writable;
-      
       log(`Connection verification - stdin readable: ${stdinReadable}, stdout writable: ${stdoutWritable}`);
-      
       if (!stdinReadable || !stdoutWritable) {
         log('WARNING: stdio streams may be in an invalid state, which could affect MCP communication');
       }
