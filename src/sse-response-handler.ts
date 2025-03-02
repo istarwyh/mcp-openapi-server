@@ -30,6 +30,7 @@ export async function handleSSEResponse(
   } else {
     chunks = lines;
   }
+  let allText = '';
   return new Promise((resolve, reject) => {
     chunks.forEach((chunk: string) => {
       try {
@@ -37,6 +38,7 @@ export async function handleSSEResponse(
         if (rawChunk.trim() === "") return;
         log("Received SSE chunk", rawChunk);
         const event: string = parseSSEEvent(rawChunk);
+        allText = allText + event;
         contentArray.push({
           type: "text",
           text: event
@@ -48,7 +50,7 @@ export async function handleSSEResponse(
     });
     resolve({
       role: "assistant",
-      content: contentArray
+      content: [{ type: 'text', text: allText }]
     });
   });
 }
