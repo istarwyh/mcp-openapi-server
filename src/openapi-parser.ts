@@ -277,6 +277,7 @@ export async function parseOpenAPISpec(specPath: string | OpenAPIV3.Document): P
   function refisterTool(openApiSpec: OpenAPIV3.Document<{}>, tools: Map<string, ExtendedTool>) {
     for (const [path, pathItem] of Object.entries(openApiSpec.paths)) {
       log(`Processing path: ${path}`);
+      log(`pathItem: ${JSON.stringify(pathItem)}`);
       if (!pathItem) continue;
       const httpMethods = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'] as const;
       for (const method of httpMethods) {
@@ -284,7 +285,9 @@ export async function parseOpenAPISpec(specPath: string | OpenAPIV3.Document): P
         // 跳过未定义的操作
         if (!operation) continue;
         // 获取操作ID，如果没有则生成一个
-        const operationId = operation.operationId || `${method}-${path.replace(/\//g, "_").replace(/^_/, "")}`;
+        const operationId = pathItem[method]?.description || operation.operationId || `${method}-${path.replace(/\//g, "_").replace(/^_/, "")}`;
+        log(`operationId: ${operationId}`);
+
         // 创建工具元数据
         const metadata: any = {
           method: method.toUpperCase(),
