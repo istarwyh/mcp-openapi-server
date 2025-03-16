@@ -247,7 +247,7 @@ export async function loadOpenAPISpec(specPath: string | OpenAPIV3.Document): Pr
 export async function parseOpenAPISpec(specPath: string | OpenAPIV3.Document): Promise<Map<string, ExtendedTool>> {
   try {
     log(`Starting to parse OpenAPI spec...`);
-    const openApiSpec = await loadOpenAPISpec(specPath);
+    const openApiSpec:OpenAPIV3.Document = await loadOpenAPISpec(specPath);
     const tools = new Map<string, ExtendedTool>();
     check(openApiSpec);
     refisterTool(openApiSpec, tools);
