@@ -144,7 +144,6 @@ export async function executeToolCall(
     const config: RequestConfig = buidlConfig();
     let response;
     try {
-      
       response = await axios(config);
       logResponse(response);
       // 检查是否是 SSE 流
@@ -152,7 +151,7 @@ export async function executeToolCall(
         return handleSSEResponse(tool, response);
       }
       return {
-        content: [{type:'text',text:response.data}],
+        content: [{type:'text',text:JSON.stringify(response.data)}],
         id: tool.name,
         timestamp: new Date().toISOString()
       };
@@ -172,7 +171,7 @@ export async function executeToolCall(
     log(`Status code: ${response.status}`);
     log(`Response headers: ${JSON.stringify(response.headers, null, 2)}`);
     // 安全地记录响应数据，避免过大的日志
-    const responseDataString = JSON.stringify(response.data);
+    const responseDataString = response.data;
     if (responseDataString.length > 1000) {
       log(`Response data (truncated): ${responseDataString.substring(0, 1000)}...`);
     } else {

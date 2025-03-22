@@ -261,9 +261,12 @@ function formatLogMessage(message: string, args: any[]): string {
     if (a === null) return 'null';
     if (typeof a === 'object') {
       try {
-        return JSON.stringify(a, null, 2);
+        return JSON.stringify(a);
       } catch (e) {
-        return `[Object: ${typeof a}, stringify error: ${e.message}]`;
+        if (e instanceof Error) {
+          return `[Object: ${typeof a}, stringify error: ${e.message}]`;
+        }
+        return `[Object: ${typeof a}, stringify error: Unknown error]`;
       }
     }
     return String(a);
@@ -302,7 +305,7 @@ export function logConnectionStatus(): void {
       ppid: process.ppid
     });
   } catch (error) {
-    error(`Failed to log connection status: ${error}`);
+    console.error(`Failed to log connection status: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 

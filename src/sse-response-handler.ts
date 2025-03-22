@@ -12,7 +12,7 @@ export function parseSSEEvent(chunk: string): string {
     return chunk;
   return chunk.slice(5).trim();
 }
-// 权宜之计，真的SSE连接暂时不知道
+// 将SSE 转成 Stdio,避免改造服务器端
 export async function handleSSEResponse(
   tool: ExtendedTool,
   response: AxiosResponse

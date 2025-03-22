@@ -6,7 +6,6 @@ import { readFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { OpenAPIV3 } from "openapi-types";
-import { ExtendedTool } from "./types.js";
 import { log } from "./logger.js";
 
 // 类型守卫函数
@@ -23,57 +22,74 @@ class ParameterProcessor {
     };
   }
 
-  static processParameters(
-    parameters: (OpenAPIV3.ParameterObject | OpenAPIV3.ReferenceObject)[],
-    baseSchema: OpenAPIV3.SchemaObject
-  ): OpenAPIV3.SchemaObject {
-    const inputSchema = { ...baseSchema };
-
-    // 过滤出有效的参数对象（排除引用）
-    const parameterObjects = parameters.filter((p): p is OpenAPIV3.ParameterObject => 
-      !('$ref' in p)
-    );
-
-    for (const param of parameterObjects) {
-      this.addParameterToSchema(param, inputSchema);
-    }
-
-    this.cleanSchema(inputSchema);
-    return inputSchema;
-  }
-
-  /**
-   * 处理请求体schema并合并到输入schema
-   */
   static processRequestBody(
     requestBodySchema: OpenAPIV3.SchemaObject,
     inputSchema: OpenAPIV3.SchemaObject
   ) {
-    inputSchema.properties = inputSchema.properties || {};
-    inputSchema.required = inputSchema.required || [];
+    if (!requestBodySchema.properties) return;
 
-    if (requestBodySchema.properties) {
-      for (const [propName, propSchema] of Object.entries(requestBodySchema.properties)) {
-        if ('$ref' in propSchema) continue;
+    // 复制所有属性
+    for (const [propName, propSchema] of Object.entries(requestBodySchema.properties)) {
+      if ('$ref' in propSchema) continue;
 
-        const propType = propSchema.type || 'object';
-        if (propType !== 'object' && propType !== 'array') {
-          continue;
+      // 直接复制属性定义
+      inputSchema.properties![propName] = propSchema;
+
+      // 如果属性是必需的，添加到 required 数组
+      if (requestBodySchema.required?.includes(propName)) {
+        if (!inputSchema.required) {
+          inputSchema.required = [];
         }
-        inputSchema.properties[propName] = {
-          type: propType as OpenAPIV3.NonArraySchemaObjectType,
-          description: propSchema.description || `${propName} parameter`,
-        };
-
-        // 处理嵌套对象
-        if (propType === 'object' && propSchema.properties) {
-          this.processNestedProperties(propName, propSchema, inputSchema);
-        }
-
-        // 处理必填项
-        if (requestBodySchema.required?.includes(propName)) {
+        if (!inputSchema.required.includes(propName)) {
           inputSchema.required.push(propName);
         }
+      }
+    }
+  }
+
+  static processParameters(
+    parameters: (OpenAPIV3.ParameterObject | OpenAPIV3.ReferenceObject)[],
+    baseSchema: OpenAPIV3.SchemaObject
+  ): OpenAPIV3.SchemaObject {
+    for (const param of parameters) {
+      if ('$ref' in param) continue;
+      this.addParameterToSchema(param, baseSchema);
+    }
+    return baseSchema;
+  }
+
+  static addParameterToSchema(
+    param: OpenAPIV3.ParameterObject,
+    schema: OpenAPIV3.SchemaObject
+  ) {
+    if (!schema.properties) {
+      schema.properties = {};
+    }
+
+    // 添加参数到 properties
+    const paramSchema = param.schema;
+    if (paramSchema && !('$ref' in paramSchema)) {
+      const paramType = paramSchema.type || 'string';
+      if (paramType === 'array') {
+        schema.properties[param.name] = {
+          type: 'array',
+          description: param.description || `${param.name} parameter`,
+        } as OpenAPIV3.ArraySchemaObject;
+      } else {
+        schema.properties[param.name] = {
+          type: paramType as OpenAPIV3.NonArraySchemaObjectType,
+          description: param.description || `${param.name} parameter`,
+        };
+      }
+    }
+
+    // 如果参数是必需的，添加到 required 数组
+    if (param.required) {
+      if (!schema.required) {
+        schema.required = [];
+      }
+      if (!schema.required.includes(param.name)) {
+        schema.required.push(param.name);
       }
     }
   }
@@ -99,31 +115,6 @@ class ParameterProcessor {
   }
 
   /**
-   * 添加单个参数到schema
-   */
-  private static addParameterToSchema(
-    param: OpenAPIV3.ParameterObject,
-    schema: OpenAPIV3.SchemaObject
-  ) {
-    const propName = param.name;
-    const schemaType = param.schema && 'type' in param.schema 
-      ? param.schema.type 
-      : "string";
-
-    schema.properties = schema.properties || {};
-    schema.required = schema.required || [];
-
-    schema.properties[propName] = {
-      type: schemaType as OpenAPIV3.NonArraySchemaObjectType,
-      description: param.description || `${propName} parameter`,
-    };
-
-    if (param.required) {
-      schema.required.push(propName);
-    }
-  }
-
-  /**
    * 递归处理嵌套属性
    */
   private static processNestedProperties(
@@ -139,10 +130,17 @@ class ParameterProcessor {
       const fullName = `${parentName}_${childName}`;
       const childType = childSchema.type || 'string';
 
-      inputSchema.properties![fullName] = {
-        type: childType,
-        description: childSchema.description || `${fullName} parameter`,
-      };
+      if (childType === 'array') {
+        inputSchema.properties![fullName] = {
+          type: 'array',
+          description: childSchema.description || `${fullName} parameter`,
+        } as OpenAPIV3.ArraySchemaObject;
+      } else {
+        inputSchema.properties![fullName] = {
+          type: childType as OpenAPIV3.NonArraySchemaObjectType,
+          description: childSchema.description || `${fullName} parameter`,
+        };
+      }
 
       // 递归处理多层嵌套
       if (childType === 'object' && childSchema.properties) {
@@ -155,7 +153,6 @@ class ParameterProcessor {
       }
     }
   }
-
 
   static cleanSchema(schema: OpenAPIV3.SchemaObject) {
     if (Object.keys(schema.properties || {}).length === 0) {
@@ -238,11 +235,11 @@ export async function loadOpenAPISpec(specPath: string | OpenAPIV3.Document): Pr
 /**
  * 从 OpenAPI 规范中解析工具
  */
-export async function parseOpenAPISpec(specPath: string | OpenAPIV3.Document): Promise<Map<string, ExtendedTool>> {
+export async function parseOpenAPISpec(specPath: string | OpenAPIV3.Document): Promise<Map<string, { name: string; description: string; inputSchema: OpenAPIV3.SchemaObject; metadata?: any; }>> {
   try {
     log(`Starting to parse OpenAPI spec...`);
     const openApiSpec:OpenAPIV3.Document = await loadOpenAPISpec(specPath);
-    const tools = new Map<string, ExtendedTool>();
+    const tools = new Map<string, { name: string; description: string; inputSchema: OpenAPIV3.SchemaObject; metadata?: any; }>();
     check(openApiSpec);
     refisterTool(openApiSpec, tools);
     return tools;
@@ -268,7 +265,7 @@ export async function parseOpenAPISpec(specPath: string | OpenAPIV3.Document): P
     log(`Successfully loaded OpenAPI spec with ${Object.keys(openApiSpec.paths).length} paths`);
   }
 
-  function refisterTool(openApiSpec: OpenAPIV3.Document<{}>, tools: Map<string, ExtendedTool>) {
+  function refisterTool(openApiSpec: OpenAPIV3.Document<{}>, tools: Map<string, { name: string; description: string; inputSchema: OpenAPIV3.SchemaObject; metadata?: any; }>) {
     for (const [path, pathItem] of Object.entries(openApiSpec.paths)) {
       log(`Processing path: ${path}`);
       log(`pathItem: ${JSON.stringify(pathItem)}`);
@@ -279,8 +276,9 @@ export async function parseOpenAPISpec(specPath: string | OpenAPIV3.Document): P
         // 跳过未定义的操作
         if (!operation) continue;
         // 获取操作ID，如果没有则生成一个
-        const operationId = pathItem[method]?.description || operation.operationId || `${method}-${path.replace(/\//g, "_").replace(/^_/, "")}`;
-        log(`operationId: ${operationId}`);
+        const toolName = operation.description || operation.operationId || `${method}-${path.replace(/\//g, "_").replace(/^_/, "")}`;
+        const toolDescription = operation.summary || toolName;
+        log(`operationId: ${toolName}`);
 
         // 创建工具元数据
         const metadata: any = {
@@ -288,49 +286,45 @@ export async function parseOpenAPISpec(specPath: string | OpenAPIV3.Document): P
           originalPath: path,
           parameters: operation.parameters || [],
         };
+
         // 提取请求体结构信息
         if (operation.requestBody && 'content' in operation.requestBody) {
           const requestBody = operation.requestBody;
           const contentTypes = Object.keys(requestBody.content || {});
           if (contentTypes.length > 0) {
-            const contentType = contentTypes[0];
-            const schema = requestBody.content?.[contentType]?.schema;
-            if (schema) {
-              metadata.requestBodySchema = schema;
-            }
+            const schema = requestBody.content[contentTypes[0]].schema as OpenAPIV3.SchemaObject;
+            metadata.requestBodySchema = schema;
           }
         }
 
-        // 创建工具描述
-        const description = operation.summary || operation.description || `${method.toUpperCase()} ${path}`;
+        // 创建基础输入模式
+        const inputSchema = ParameterProcessor.createBaseSchema();
 
-        const inputSchema = ParameterProcessor.processParameters(
-          metadata.parameters || [],
-          ParameterProcessor.createBaseSchema()
-        );
+        // 处理路径和查询参数
+        if (operation.parameters) {
+          ParameterProcessor.processParameters(operation.parameters, inputSchema);
+        }
 
         // 处理请求体参数
         if (metadata.requestBodySchema) {
-          ParameterProcessor.processRequestBody(
-            metadata.requestBodySchema,
-            inputSchema
-          );
+          ParameterProcessor.processRequestBody(metadata.requestBodySchema, inputSchema);
+          
+          // 确保 required 字段被正确设置
+          if (metadata.requestBodySchema.required) {
+            inputSchema.required = metadata.requestBodySchema.required;
+          }
         }
 
-        // 追加参数元数据，方便检查
-        const parameters = ParameterProcessor.createParametersMetadata(inputSchema);
-        ParameterProcessor.cleanSchema(inputSchema);
-
-        // 注册工具
-        tools.set(operationId, {
-          name: operationId,
-          description,
+        // 创建工具对象
+        const tool = {
+          name: toolName,
+          description: toolDescription,
           inputSchema,
-          parameters,
           metadata,
-        });
+        };
 
-        log(`Registered tool: ${operationId} for ${method.toUpperCase()} ${path} with inputSchema`);
+        log(`Registered tool: ${toolName} for ${method.toUpperCase()} ${path} with inputSchema`);
+        tools.set(toolName, tool);
       }
     }
   }

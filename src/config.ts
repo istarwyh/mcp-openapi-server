@@ -51,12 +51,14 @@ export function parseEnvironmentDefaults(): Record<string, any> {
 function parseHeaders(headerStr?: string): Record<string, string> {
   const headers: Record<string, string> = {};
   if (headerStr) {
+    log(`Header string: ${headerStr}`);
     const cleanHeaderStr = headerStr.replace(/^"|"$/g, '').trim();
     cleanHeaderStr.split(",").forEach((header) => {
       const [key, value] = header.split(":");
       if (key && value) headers[key.trim()] = value.trim();
     });
   }
+  log(`Headers:`, headers);
   headers['Content-Type'] = 'application/json';
   return headers;
 }

@@ -25,10 +25,7 @@
     "dev": "nodemon --watch src -e ts --exec 'npm run build'",
     "inspect": "node -r dotenv/config ./scripts/inspect.js",
     "inspect-watch": "node ./scripts/inspect-watch.js",
-    "test:config": "node ./tests/test-config.js",
-    "test:logger": "node ./tests/test-logger.js",
-    "test:mapping": "node ./tests/test-generic-mapping.js",
-    "test:smithery": "NODE_OPTIONS='--loader ts-node/esm' ts-node --project tsconfig.esm.json tests/test-smithery.ts"
+    "test": "jest"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.4.0",
