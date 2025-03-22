@@ -14,11 +14,7 @@ function isDocument(obj: any): obj is OpenAPIV3.Document {
   return typeof obj === 'object' && 'openapi' in obj && 'info' in obj;
 }
 
-// 参数处理器类（完整实现）
 class ParameterProcessor {
-  /**
-   * 创建基础schema结构
-   */
   static createBaseSchema(): OpenAPIV3.SchemaObject {
     return {
       type: "object",
@@ -27,9 +23,6 @@ class ParameterProcessor {
     };
   }
 
-  /**
-   * 处理OpenAPI参数并构建输入模式
-   */
   static processParameters(
     parameters: (OpenAPIV3.ParameterObject | OpenAPIV3.ReferenceObject)[],
     baseSchema: OpenAPIV3.SchemaObject
@@ -64,8 +57,11 @@ class ParameterProcessor {
         if ('$ref' in propSchema) continue;
 
         const propType = propSchema.type || 'object';
+        if (propType !== 'object' && propType !== 'array') {
+          continue;
+        }
         inputSchema.properties[propName] = {
-          type: propType,
+          type: propType as OpenAPIV3.NonArraySchemaObjectType,
           description: propSchema.description || `${propName} parameter`,
         };
 
@@ -118,7 +114,7 @@ class ParameterProcessor {
     schema.required = schema.required || [];
 
     schema.properties[propName] = {
-      type: schemaType,
+      type: schemaType as OpenAPIV3.NonArraySchemaObjectType,
       description: param.description || `${propName} parameter`,
     };
 
@@ -160,9 +156,7 @@ class ParameterProcessor {
     }
   }
 
-  /**
-   * 清理schema结构
-   */
+
   static cleanSchema(schema: OpenAPIV3.SchemaObject) {
     if (Object.keys(schema.properties || {}).length === 0) {
       delete schema.properties;
@@ -310,7 +304,6 @@ export async function parseOpenAPISpec(specPath: string | OpenAPIV3.Document): P
         // 创建工具描述
         const description = operation.summary || operation.description || `${method.toUpperCase()} ${path}`;
 
-        // 使用参数处理器统一处理参数
         const inputSchema = ParameterProcessor.processParameters(
           metadata.parameters || [],
           ParameterProcessor.createBaseSchema()
@@ -324,12 +317,8 @@ export async function parseOpenAPISpec(specPath: string | OpenAPIV3.Document): P
           );
         }
 
-        // 创建参数元数据
-        const parameters = ParameterProcessor.createParametersMetadata(
-          inputSchema
-        );
-
-        // 清理schema结构
+        // 追加参数元数据，方便检查
+        const parameters = ParameterProcessor.createParametersMetadata(inputSchema);
         ParameterProcessor.cleanSchema(inputSchema);
 
         // 注册工具

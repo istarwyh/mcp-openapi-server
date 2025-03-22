@@ -17,8 +17,8 @@ export function extractTextFromQuotes(input: string): string[] {
   return matches;
 }
 
-export function extractIteratorFromQuotes(input: string): string[] {
-    const regex = /"iterator":\s*"([^"]*)"/g;
+export function extractContentFromQuotes(input: string): string[] {
+    const regex = /"content":\s*"([^"]*)"/g;
     const matches = [];
     let match;
   

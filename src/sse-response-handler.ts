@@ -5,7 +5,7 @@ import { ExtendedTool, RequestConfig } from "./types.js";
 import { log } from "./logger.js";
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { ErrorCode, JSONRPCMessage, McpError, SamplingMessage, SamplingMessageSchema } from '@modelcontextprotocol/sdk/types.js';
-import { extractIteratorFromQuotes, extractTextFromQuotes } from "./utils.js";
+import { extractContentFromQuotes, extractTextFromQuotes } from "./utils.js";
 
 export function parseSSEEvent(chunk: string): string {
   if (!chunk.startsWith("data:"))
@@ -19,14 +19,14 @@ export async function handleSSEResponse(
 ): Promise<SamplingMessage> {
   const stream: string = response.data;
   const textChunks: string[] = extractTextFromQuotes(stream);
-  const iteratorChunks: string[] = extractIteratorFromQuotes(stream);
+  const contentChunks: string[] = extractContentFromQuotes(stream);
   const lines: string[] = stream.trim().split('\n\n');
   const contentArray: any[] = []
   let chunks = textChunks;
   if (textChunks.length > 0) {
     chunks = textChunks;
-  } else if (iteratorChunks.length > 0) {
-    chunks = iteratorChunks;
+  } else if (contentChunks.length > 0) {
+    chunks = contentChunks;
   } else {
     chunks = lines;
   }
@@ -43,7 +43,7 @@ export async function handleSSEResponse(
           type: "text",
           text: event
         })
-      } catch (error) {
+      } catch (error: Error | unknown) {
         log("Error processing SSE chunk", error);
         reject(new McpError(ErrorCode.InternalError, error.message));
       }
