@@ -9,8 +9,6 @@ import { Config, ExtendedTool } from "./types.js";
 import { parseOpenAPISpec } from "./openapi-parser.js";
 import { executeToolCall } from "./request-handler.js";
 import { log } from "./logger.js";
-import { existsSync } from 'fs';
-import path from 'path';
 
 /**
  * OpenAPI MCP 服务器类
@@ -74,11 +72,11 @@ export class OpenAPIMCPServer {
     if (this.transport) {
       try {
         // 尝试断开连接
-        log('Disconnecting transport...');
-        await this.server.disconnect();
-        log('Transport disconnected successfully');
+        log('Closing transport...');
+        await this.server.close();
+        log('Transport closed successfully');
       } catch (error) {
-        log(`Error disconnecting transport: ${error}`);
+        log(`Error closing transport: ${error}`);
       }
     }
   }
@@ -136,21 +134,10 @@ export class OpenAPIMCPServer {
   async start(): Promise<void> {
     try {
       log("Server.start() called");
-      
-      // 验证OpenAPI规范文件路径
       if (!this.config.openApiSpec) {
         log("ERROR: OPENAPI_SPEC_PATH environment variable is not set. Using default: ../openapi.example.yaml");
         this.config.openApiSpec = "../openapi.example.yaml";
       }
-      
-      const resolvedSpecPath = path.resolve(process.cwd(), this.config.openApiSpec);
-      log(`Resolved OpenAPI spec path: ${resolvedSpecPath}`);
-      
-      if (!existsSync(resolvedSpecPath)) {
-        throw new Error(`OpenAPI spec file not found: ${resolvedSpecPath}`);
-      }
-      
-      // 解析 OpenAPI 规范
       log("Parsing OpenAPI spec...");
       try {
         this.tools = await parseOpenAPISpec(this.config.openApiSpec);
@@ -161,12 +148,7 @@ export class OpenAPIMCPServer {
       }
       this.initializeHandlers();
       log(`Starting MCP server with ${this.tools.size} tools`);
-      // 创建传输层
-      log("Creating transport...");
       this.transport = new StdioServerTransport();
-      // 连接到传输层
-      log("Connecting to transport...");
-      // 添加超时处理
       const connectionPromise = this.server.connect(this.transport);
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => reject(new Error('Connection timeout after 30 seconds')), 30000);

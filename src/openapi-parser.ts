@@ -5,13 +5,7 @@ import { OpenAPIV3 } from "openapi-types";
 import { log } from "./logger.js";
 import * as yaml from 'js-yaml';
 import * as crypto from 'crypto';
-
-type Tool = {
-  name: string;
-  description: string;
-  inputSchema: OpenAPIV3.SchemaObject;
-  metadata: Metadata;
-};
+import { ExtendedTool } from "./types.js";
 
 type Metadata = {
   method: string;
@@ -20,7 +14,7 @@ type Metadata = {
   requestBodySchema?: OpenAPIV3.SchemaObject;
 };
 
-type ToolMap = Map<string, Tool>;
+type ToolMap = Map<string, ExtendedTool>;
 
 const createEmptySchema = (): OpenAPIV3.SchemaObject => ({
   type: "object",
@@ -318,7 +312,7 @@ const createToolsFromOperation = (
   path: string,
   method: string,
   operation: OpenAPIV3.OperationObject
-): Tool[] => {
+): ExtendedTool[] => {
   const metadata: Metadata = {
     method: method.toUpperCase(),
     originalPath: path,
@@ -355,7 +349,7 @@ const createToolsFromOperation = (
       description,
       inputSchema,
       metadata
-    };
+    } as ExtendedTool;
   });
 };
 
@@ -366,7 +360,7 @@ const parseOpenAPISpec = async (specPath: string | OpenAPIV3.Document): Promise<
 
     log(`Successfully loaded OpenAPI spec with ${Object.keys(spec.paths || {}).length} paths`);
 
-    const tools = new Map<string, Tool>();
+    const tools = new Map<string, ExtendedTool>();
 
     Object.entries(spec.paths || {}).forEach(([path, pathItem]) => {
       if (!pathItem || isReferenceObject(pathItem)) return;

@@ -206,35 +206,7 @@ function logWithLevel(level: LogLevel, message: string, ...args: any[]): void {
     formattedMessage = formattedMessage.substring(0, currentConfig.maxMessageLength) + 
       `... [truncated, full length: ${formattedMessage.length}]`;
   }
-  
-  // 写入文件日志
   logToFile(level, formattedMessage).catch(() => {});
-  
-  // 写入控制台日志
-  if (currentConfig.useConsole) {
-    if (currentConfig.useStderr) {
-      // 使用stderr而不是stdout，避免干扰MCP协议通信
-      process.stderr.write(`[${LogLevel[level]}] ${formattedMessage}\n`);
-    } else {
-      // 根据日志级别使用不同的控制台方法
-      switch (level) {
-        case LogLevel.TRACE:
-        case LogLevel.DEBUG:
-          console.debug(`[${LogLevel[level]}] ${formattedMessage}`);
-          break;
-        case LogLevel.INFO:
-          console.info(`[${LogLevel[level]}] ${formattedMessage}`);
-          break;
-        case LogLevel.WARN:
-          console.warn(`[${LogLevel[level]}] ${formattedMessage}`);
-          break;
-        case LogLevel.ERROR:
-        case LogLevel.FATAL:
-          console.error(`[${LogLevel[level]}] ${formattedMessage}`);
-          break;
-      }
-    }
-  }
 }
 
 /**

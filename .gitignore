@@ -7,3 +7,4 @@ mcp-server-debug.log
 server_logs.txt
 update_logs.md
 .DS_Store
+.cache
