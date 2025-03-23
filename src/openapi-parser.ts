@@ -1,266 +1,221 @@
-/**
- * OpenAPI 解析模块 - 遵循SRP原则重构后的版本
- */
-
 import { readFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { OpenAPIV3 } from "openapi-types";
 import { log } from "./logger.js";
 
+type Tool = {
+  name: string;
+  description: string;
+  inputSchema: OpenAPIV3.SchemaObject;
+  metadata?: Metadata;
+};
 
-class ParameterProcessor {
-  static createBaseSchema(): OpenAPIV3.SchemaObject {
-    return {
-      type: "object",
-      properties: {},
-      required: []
-    };
-  }
+type Metadata = {
+  method: string;
+  originalPath: string;
+  requestBodySchema?: OpenAPIV3.SchemaObject;
+  parameters?: (OpenAPIV3.ParameterObject | OpenAPIV3.ReferenceObject)[];
+};
 
-  static processRequestBody(
-    requestBodySchema: OpenAPIV3.SchemaObject,
-    inputSchema: OpenAPIV3.SchemaObject
-  ) {
-    if (!requestBodySchema.properties) return;
+type ToolMap = Map<string, Tool>;
 
-    // 复制所有属性
-    for (const [propName, propSchema] of Object.entries(requestBodySchema.properties)) {
-      if ('$ref' in propSchema) continue;
 
-      // 直接复制属性定义
-      inputSchema.properties![propName] = propSchema;
+const createEmptySchema = (): OpenAPIV3.SchemaObject => ({
+  type: "object",
+  properties: {},
+  required: []
+});
 
-      // 如果属性是必需的，添加到 required 数组
-      if (requestBodySchema.required?.includes(propName)) {
-        if (!inputSchema.required) {
-          inputSchema.required = [];
-        }
-        if (!inputSchema.required.includes(propName)) {
-          inputSchema.required.push(propName);
-        }
-      }
+const isReferenceObject = (obj: any): obj is OpenAPIV3.ReferenceObject => 
+  obj && '$ref' in obj;
+
+const addPropertyToSchema = (
+  schema: OpenAPIV3.SchemaObject,
+  propName: string,
+  propSchema: OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject,
+  isRequired: boolean
+) => {
+  if (isReferenceObject(propSchema)) return;
+
+  if (!schema.properties) schema.properties = {};
+  schema.properties[propName] = propSchema;
+
+  if (isRequired) {
+    if (!schema.required) schema.required = [];
+    if (!schema.required.includes(propName)) {
+      schema.required.push(propName);
     }
   }
+};
 
-  static processParameters(
-    parameters: (OpenAPIV3.ParameterObject | OpenAPIV3.ReferenceObject)[],
-    baseSchema: OpenAPIV3.SchemaObject
-  ): OpenAPIV3.SchemaObject {
-    for (const param of parameters) {
-      if ('$ref' in param) continue;
-      this.addParameterToSchema(param, baseSchema);
+const addRequestBodyToSchema = (
+  requestBodySchema: OpenAPIV3.SchemaObject,
+  inputSchema: OpenAPIV3.SchemaObject
+): void => {
+  if (!requestBodySchema.properties) return;
+
+  Object.entries(requestBodySchema.properties).forEach(([propName, propSchema]) => {
+    addPropertyToSchema(
+      inputSchema,
+      propName,
+      propSchema,
+      requestBodySchema.required?.includes(propName) || false
+    );
+  });
+};
+
+const createParameterSchema = (param: OpenAPIV3.ParameterObject): OpenAPIV3.SchemaObject => {
+  const paramSchema = param.schema;
+  if (!paramSchema || isReferenceObject(paramSchema)) return {} as OpenAPIV3.SchemaObject;
+
+  const paramType = paramSchema.type || 'string';
+  return paramType === 'array'
+    ? {
+        type: 'array',
+        description: param.description || `${param.name} parameter`,
+      } as OpenAPIV3.ArraySchemaObject
+    : {
+        type: paramType as OpenAPIV3.NonArraySchemaObjectType,
+        description: param.description || `${param.name} parameter`,
+      };
+};
+
+const addParametersToSchema = (
+  parameters: (OpenAPIV3.ParameterObject | OpenAPIV3.ReferenceObject)[],
+  schema: OpenAPIV3.SchemaObject
+): void => {
+  parameters.forEach(param => {
+    if (!isReferenceObject(param)) {
+      const paramSchema = createParameterSchema(param);
+      addPropertyToSchema(schema, param.name, paramSchema, param.required || false);
     }
-    return baseSchema;
+  });
+};
+
+
+
+const cleanupSchema = (schema: OpenAPIV3.SchemaObject): void => {
+  if (Object.keys(schema.properties || {}).length === 0) delete schema.properties;
+  if ((schema.required || []).length === 0) delete schema.required;
+};
+
+const readSpecFile = async (filePath: string): Promise<string> => {
+  const resolvedPath = path.resolve(process.cwd(), filePath);
+  if (!existsSync(resolvedPath)) {
+    throw new Error(`OpenAPI spec file not found: ${resolvedPath}`);
   }
+  return await readFile(resolvedPath, "utf8");
+};
 
-  static addParameterToSchema(
-    param: OpenAPIV3.ParameterObject,
-    schema: OpenAPIV3.SchemaObject
-  ) {
-    if (!schema.properties) {
-      schema.properties = {};
-    }
-
-    // 添加参数到 properties
-    const paramSchema = param.schema;
-    if (paramSchema && !('$ref' in paramSchema)) {
-      const paramType = paramSchema.type || 'string';
-      if (paramType === 'array') {
-        schema.properties[param.name] = {
-          type: 'array',
-          description: param.description || `${param.name} parameter`,
-        } as OpenAPIV3.ArraySchemaObject;
-      } else {
-        schema.properties[param.name] = {
-          type: paramType as OpenAPIV3.NonArraySchemaObjectType,
-          description: param.description || `${param.name} parameter`,
-        };
-      }
-    }
-
-    // 如果参数是必需的，添加到 required 数组
-    if (param.required) {
-      if (!schema.required) {
-        schema.required = [];
-      }
-      if (!schema.required.includes(param.name)) {
-        schema.required.push(param.name);
-      }
-    }
+const parseSpecContent = async (content: string, filePath: string): Promise<OpenAPIV3.Document> => {
+  const isYaml = filePath.toLowerCase().endsWith(".yaml") || filePath.toLowerCase().endsWith(".yml");
+  
+  if (isYaml) {
+    const yaml = await import("js-yaml");
+    return yaml.load(content) as OpenAPIV3.Document;
   }
+  return JSON.parse(content);
+};
 
-  /**
-   * 根据schema生成参数元数据
-   */
-  static createParametersMetadata(schema: OpenAPIV3.SchemaObject): Record<string, any> {
-    const parameters: Record<string, any> = {};
-    
-    if (schema.properties) {
-      for (const [name, prop] of Object.entries(schema.properties)) {
-        if ('$ref' in prop) continue;
-        
-        parameters[name] = {
-          type: prop.type || 'string',
-          description: prop.description || `${name} parameter`,
-          required: schema.required?.includes(name) || false
-        };
-      }
-    }
-    return parameters;
-  }
-
-
-  static cleanSchema(schema: OpenAPIV3.SchemaObject) {
-    if (Object.keys(schema.properties || {}).length === 0) {
-      delete schema.properties;
-    }
-    if ((schema.required || []).length === 0) {
-      delete schema.required;
-    }
-  }
-}
-
-/**
- * 加载 OpenAPI 规范文件
- */
-export async function loadOpenAPISpec(specPath: string | OpenAPIV3.Document): Promise<OpenAPIV3.Document> {
+const loadOpenAPISpec = async (specPath: string | OpenAPIV3.Document): Promise<OpenAPIV3.Document> => {
   if (typeof specPath === "string") {
     try {
-      const resolvedPath = path.resolve(process.cwd(), specPath);
-      log(`Loading OpenAPI spec from: ${resolvedPath}`);
-      
-      if (!existsSync(resolvedPath)) {
-        log(`OpenAPI spec file not found: ${resolvedPath}`);
-        throw new Error(`OpenAPI spec file not found: ${resolvedPath}`);
-      }
-      
-      log(`Reading OpenAPI spec file...`);
-      const specContent = await readFile(resolvedPath, "utf8");
-      log(`OpenAPI spec file read successfully, length: ${specContent.length} bytes`);
-      
-      // 根据文件扩展名决定如何解析
-      if (resolvedPath.toLowerCase().endsWith(".yaml") || resolvedPath.toLowerCase().endsWith(".yml")) {
-        log(`Parsing YAML OpenAPI spec...`);
-        const yaml = await import("js-yaml");
-        const parsed = yaml.load(specContent) as OpenAPIV3.Document;
-        log(`YAML OpenAPI spec parsed successfully`);
-        return parsed;
-      } else {
-        log(`Parsing JSON OpenAPI spec...`);
-        const parsed = JSON.parse(specContent);
-        log(`JSON OpenAPI spec parsed successfully`);
-        return parsed;
-      }
+      log(`Loading OpenAPI spec from: ${specPath}`);
+      const content = await readSpecFile(specPath);
+      log(`OpenAPI spec file read successfully, length: ${content.length} bytes`);
+      const parsed = await parseSpecContent(content, specPath);
+      log(`OpenAPI spec parsed successfully`);
+      return parsed;
     } catch (error) {
-      const errorMessage = error instanceof Error 
-        ? `Failed to load OpenAPI spec: ${error.message}`
-        : `Failed to load OpenAPI spec: ${error}`;
-      
-      log(errorMessage);
-      throw new Error(errorMessage);
+      const message = `Failed to load OpenAPI spec: ${error instanceof Error ? error.message : error}`;
+      log(message);
+      throw new Error(message);
     }
-  } else if (specPath) {
-    log(`Using provided OpenAPI spec object`);
-    return specPath as OpenAPIV3.Document;
-  } else {
-    const errorMessage = `No OpenAPI spec provided`;
-    log(errorMessage);
-    throw new Error(errorMessage);
   }
-}
+  
+  if (specPath) {
+    log(`Using provided OpenAPI spec object`);
+    return specPath;
+  }
+  
+  throw new Error(`No OpenAPI spec provided`);
+};
 
-/**
- * 从 OpenAPI 规范中解析工具
- */
-export async function parseOpenAPISpec(specPath: string | OpenAPIV3.Document): Promise<Map<string, { name: string; description: string; inputSchema: OpenAPIV3.SchemaObject; metadata?: any; }>> {
+const validateSpec = (spec: OpenAPIV3.Document): void => {
+  if (!spec) throw new Error(`OpenAPI spec is undefined or null`);
+  if (!spec.paths) throw new Error(`OpenAPI spec does not contain paths property`);
+  log(`Successfully loaded OpenAPI spec with ${Object.keys(spec.paths).length} paths`);
+};
+
+const createToolFromOperation = (
+  path: string,
+  method: string,
+  operation: OpenAPIV3.OperationObject
+): Tool => {
+  const metadata: Metadata = {
+    method: method.toUpperCase(),
+    originalPath: path,
+    parameters: operation.parameters
+  };
+
+  const inputSchema = createEmptySchema();
+
+  if (operation.parameters) {
+    addParametersToSchema(operation.parameters, inputSchema);
+  }
+
+  if (operation.requestBody && !isReferenceObject(operation.requestBody)) {
+    const contentType = Object.keys(operation.requestBody.content)[0];
+    const schema = operation.requestBody.content[contentType]?.schema;
+    
+    if (schema && !isReferenceObject(schema)) {
+      metadata.requestBodySchema = schema;
+      addRequestBodyToSchema(schema, inputSchema);
+    }
+  }
+
+  cleanupSchema(inputSchema);
+
+  return {
+    name: operation.summary || operation.operationId || `${method} ${path}`,
+    description: operation.description || operation.summary || `${method} ${path}`,
+    inputSchema,
+    metadata
+  };
+};
+
+const registerTools = (spec: OpenAPIV3.Document, tools: ToolMap): void => {
+  Object.entries(spec.paths).forEach(([path, pathItem]) => {
+    if (!pathItem || isReferenceObject(pathItem)) return;
+    
+    log(`Processing path: ${path}`);
+    log(`pathItem: ${JSON.stringify(pathItem)}`);
+
+    Object.entries(pathItem).forEach(([method, operation]) => {
+      if (method === 'parameters' || isReferenceObject(operation) || !operation) return;
+
+      const tool = createToolFromOperation(path, method, operation as OpenAPIV3.OperationObject);
+      log(`Registered tool: ${tool.name} for ${method.toUpperCase()} ${path} with inputSchema`);
+      tools.set(tool.name, tool);
+    });
+  });
+};
+
+export const parseOpenAPISpec = async (
+  specPath: string | OpenAPIV3.Document
+): Promise<ToolMap> => {
   try {
     log(`Starting to parse OpenAPI spec...`);
-    const openApiSpec:OpenAPIV3.Document = await loadOpenAPISpec(specPath);
-    const tools = new Map<string, { name: string; description: string; inputSchema: OpenAPIV3.SchemaObject; metadata?: any; }>();
-    check(openApiSpec);
-    refisterTool(openApiSpec, tools);
+    const spec = await loadOpenAPISpec(specPath);
+    validateSpec(spec);
+    
+    const tools: ToolMap = new Map();
+    registerTools(spec, tools);
     return tools;
   } catch (error) {
-    const errorMessage = error instanceof Error 
-      ? `Failed to parse OpenAPI spec: ${error.message}`
-      : `Failed to parse OpenAPI spec: ${error}`;
-    log(errorMessage);
-    throw new Error(errorMessage);
+    const message = `Failed to parse OpenAPI spec: ${error instanceof Error ? error.message : error}`;
+    log(message);
+    throw new Error(message);
   }
-
-  function check(openApiSpec: OpenAPIV3.Document<{}>) {
-    if (!openApiSpec) {
-      log(`Error: OpenAPI spec is undefined or null`);
-      throw new Error(`OpenAPI spec is undefined or null`);
-    }
-
-    if (!openApiSpec.paths) {
-      log(`Error: OpenAPI spec does not contain paths property`);
-      throw new Error(`OpenAPI spec does not contain paths property`);
-    }
-
-    log(`Successfully loaded OpenAPI spec with ${Object.keys(openApiSpec.paths).length} paths`);
-  }
-
-  function refisterTool(openApiSpec: OpenAPIV3.Document<{}>, tools: Map<string, { name: string; description: string; inputSchema: OpenAPIV3.SchemaObject; metadata?: any; }>) {
-    for (const [path, pathItem] of Object.entries(openApiSpec.paths)) {
-      log(`Processing path: ${path}`);
-      log(`pathItem: ${JSON.stringify(pathItem)}`);
-      if (!pathItem) continue;
-      const httpMethods = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'] as const;
-      for (const method of httpMethods) {
-        const operation = pathItem[method] as OpenAPIV3.OperationObject | undefined;
-        // 跳过未定义的操作
-        if (!operation) continue;
-        const toolName = operation.summary || operation.operationId || `${method}-${path.replace(/\//g, "_").replace(/^_/, "")}`;
-        const toolDescription = operation.description || toolName;
-        log(`operationId: ${toolName}`);
-
-        // 创建工具元数据
-        const metadata: any = {
-          method: method.toUpperCase(),
-          originalPath: path,
-          parameters: operation.parameters || [],
-        };
-
-        // 提取请求体结构信息
-        if (operation.requestBody && 'content' in operation.requestBody) {
-          const requestBody = operation.requestBody;
-          const contentTypes = Object.keys(requestBody.content || {});
-          if (contentTypes.length > 0) {
-            const schema = requestBody.content[contentTypes[0]].schema as OpenAPIV3.SchemaObject;
-            metadata.requestBodySchema = schema;
-          }
-        }
-
-        // 创建基础输入模式
-        const inputSchema = ParameterProcessor.createBaseSchema();
-
-        // 处理路径和查询参数
-        if (operation.parameters) {
-          ParameterProcessor.processParameters(operation.parameters, inputSchema);
-        }
-
-        // 处理请求体参数
-        if (metadata.requestBodySchema) {
-          ParameterProcessor.processRequestBody(metadata.requestBodySchema, inputSchema);
-          if (metadata.requestBodySchema.required) {
-            inputSchema.required = metadata.requestBodySchema.required;
-          }
-        }
-
-        // 创建工具对象
-        const tool = {
-          name: toolName,
-          description: toolDescription,
-          inputSchema,
-          metadata,
-        };
-
-        log(`Registered tool: ${toolName} for ${method.toUpperCase()} ${path} with inputSchema`);
-        tools.set(toolName, tool);
-      }
-    }
-  }
-}
+};
