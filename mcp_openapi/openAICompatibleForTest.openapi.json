@@ -1,0 +1,170 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "MCP API",
+    "description": "",
+    "version": "1.0.0"
+  },
+  "tags": [],
+  "paths": {
+    "/v1/chat/completions": {
+      "post": {
+        "summary": "调用deepseek|调用openai|调用qwen",
+        "deprecated": false,
+        "description": "调用DeepSeek|调用OpenAI|调用Qwen",
+        "tags": [],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "title": "",
+                "type": "object",
+                "properties": {
+                  "model": {
+                    "type": "string",
+                    "description": "模型名称"
+                  },
+                  "messages": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "role": {
+                          "type": "string",
+                          "description": "身份描述"
+                        },
+                        "content": {
+                          "type": "string",
+                          "description": "提示词"
+                        }
+                      },
+                      "required": [
+                        "role",
+                        "content"
+                      ]
+                    },
+                    "description": "提示词信息"
+                  },
+                  "stream": {
+                    "type": "boolean",
+                    "description": "是否流式输出"
+                  }
+                },
+                "required": [
+                  "model",
+                  "messages",
+                  "stream"
+                ]
+              },
+              "example": {
+                "model": "deepseek-chat",
+                "messages": [
+                  {
+                    "role": "system",
+                    "content": "You are a helpful assistant."
+                  },
+                  {
+                    "role": "user",
+                    "content": "Hello!"
+                  }
+                ],
+                "stream": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "object": {
+                      "type": "string"
+                    },
+                    "created": {
+                      "type": "integer"
+                    },
+                    "model": {
+                      "type": "string"
+                    },
+                    "system_fingerprint": {
+                      "type": "string"
+                    },
+                    "choices": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "index": {
+                            "type": "integer"
+                          },
+                          "delta": {
+                            "type": "object",
+                            "properties": {
+                              "content": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "content"
+                            ]
+                          },
+                          "logprobs": {
+                            "type": "null"
+                          },
+                          "finish_reason": {
+                            "type": "null"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "object",
+                    "created",
+                    "model",
+                    "system_fingerprint",
+                    "choices"
+                  ]
+                },
+                "example": {
+                  "id": "8e4fcd65-eed8-49ca-be43-d5c45f6cbd12",
+                  "object": "chat.completion.chunk",
+                  "created": 1742628344,
+                  "model": "deepseek-chat",
+                  "system_fingerprint": "fp_3a5770e1b4_prod0225",
+                  "choices": [
+                    {
+                      "index": 0,
+                      "delta": {
+                        "content": " How"
+                      },
+                      "logprobs": null,
+                      "finish_reason": null
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    }
+  },
+  "components": {
+    "schemas": {},
+    "securitySchemes": {}
+  },
+  "servers": [],
+  "security": []
+}

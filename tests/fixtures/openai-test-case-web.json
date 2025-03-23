@@ -1,0 +1,229 @@
+{
+  "input": "https://github.com/istarwyh/mcp-openapi-server/blob/main/mcp_openapi/openAICompatibleForTest.openapi.json",
+  "expected": {
+    "tools": [
+      {
+        "name": "调用deepseek",
+        "description": "调用DeepSeek",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string",
+              "description": "模型名称"
+            },
+            "messages": {
+              "type": "array",
+              "description": "提示词信息",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "description": "身份描述"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "提示词"
+                  }
+                },
+                "required": ["role", "content"]
+              }
+            },
+            "stream": {
+              "type": "boolean",
+              "description": "是否流式输出"
+            }
+          },
+          "required": ["model", "messages", "stream"]
+        },
+        "metadata": {
+          "method": "POST",
+          "originalPath": "/v1/chat/completions",
+          "parameters": [],
+          "requestBodySchema": {
+            "title": "",
+            "type": "object",
+            "properties": {
+              "model": {
+                "type": "string",
+                "description": "模型名称"
+              },
+              "messages": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "type": "string",
+                      "description": "身份描述"
+                    },
+                    "content": {
+                      "type": "string",
+                      "description": "提示词"
+                    }
+                  },
+                  "required": ["role", "content"]
+                },
+                "description": "提示词信息"
+              },
+              "stream": {
+                "type": "boolean",
+                "description": "是否流式输出"
+              }
+            },
+            "required": ["model", "messages", "stream"]
+          }
+        }
+      },
+      {
+        "name": "调用openai",
+        "description": "调用OpenAI",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string",
+              "description": "模型名称"
+            },
+            "messages": {
+              "type": "array",
+              "description": "提示词信息",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "description": "身份描述"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "提示词"
+                  }
+                },
+                "required": ["role", "content"]
+              }
+            },
+            "stream": {
+              "type": "boolean",
+              "description": "是否流式输出"
+            }
+          },
+          "required": ["model", "messages", "stream"]
+        },
+        "metadata": {
+          "method": "POST",
+          "originalPath": "/v1/chat/completions",
+          "parameters": [],
+          "requestBodySchema": {
+            "title": "",
+            "type": "object",
+            "properties": {
+              "model": {
+                "type": "string",
+                "description": "模型名称"
+              },
+              "messages": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "type": "string",
+                      "description": "身份描述"
+                    },
+                    "content": {
+                      "type": "string",
+                      "description": "提示词"
+                    }
+                  },
+                  "required": ["role", "content"]
+                },
+                "description": "提示词信息"
+              },
+              "stream": {
+                "type": "boolean",
+                "description": "是否流式输出"
+              }
+            },
+            "required": ["model", "messages", "stream"]
+          }
+        }
+      },
+      {
+        "name": "调用qwen",
+        "description": "调用Qwen",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string",
+              "description": "模型名称"
+            },
+            "messages": {
+              "type": "array",
+              "description": "提示词信息",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "description": "身份描述"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "提示词"
+                  }
+                },
+                "required": ["role", "content"]
+              }
+            },
+            "stream": {
+              "type": "boolean",
+              "description": "是否流式输出"
+            }
+          },
+          "required": ["model", "messages", "stream"]
+        },
+        "metadata": {
+          "method": "POST",
+          "originalPath": "/v1/chat/completions",
+          "parameters": [],
+          "requestBodySchema": {
+            "title": "",
+            "type": "object",
+            "properties": {
+              "model": {
+                "type": "string",
+                "description": "模型名称"
+              },
+              "messages": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "type": "string",
+                      "description": "身份描述"
+                    },
+                    "content": {
+                      "type": "string",
+                      "description": "提示词"
+                    }
+                  },
+                  "required": ["role", "content"]
+                },
+                "description": "提示词信息"
+              },
+              "stream": {
+                "type": "boolean",
+                "description": "是否流式输出"
+              }
+            },
+            "required": ["model", "messages", "stream"]
+          }
+        }
+      }
+    ]
+  }
+}
