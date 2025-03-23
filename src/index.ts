@@ -15,7 +15,6 @@ if (!global.__mcpServerStarted) {
 
 // 使用log函数而不是console.log
 log("index.ts module loaded");
-log(`import.meta.url: ${import.meta.url}`);
 log(`process.argv[1]: ${process.argv[1]}`);
 
 /**
@@ -26,9 +25,17 @@ const argv = yargs(hideBin(process.argv))
     type: 'string',
     description: 'Base URL for the API',
   })
-  .option('openapi-spec', {
+  .option('openapi-spec-path', {
     type: 'string',
     description: 'Path to OpenAPI specification file',
+  })
+  .option('bearer-token', {
+    type: 'string',
+    description: 'Bearer token for authentication',
+  })
+  .option('agent-id', {
+    type: 'string',
+    description: 'Agent ID for authentication',
   })
   .option('name', {
     type: 'string',
@@ -64,24 +71,24 @@ async function main(): Promise<void> {
 log("About to check if this is the entry point");
 
 // 检查是否是直接运行或通过mcp-server.js运行
-const isDirectEntry = import.meta.url === `file://${process.argv[1]}`;
-const isMcpServerEntry = process.argv[1]?.includes('mcp-server.js');
+// const isDirectEntry = import.meta.url === `file://${process.argv[1]}`;
+const isMcpServerEntry = process.argv[1]?.includes('mcp-server');
+const isMcpapiEntry = process.argv[1]?.includes('mcpapi');
 const isMcpInspector = process.env.MCP_INSPECTOR === 'true';
 
 // 记录检查结果
-log(`Direct entry check: ${isDirectEntry}`);
 log(`MCP server entry check: ${isMcpServerEntry}`);
+log(`MCP api entry check: ${isMcpapiEntry}`);
 log(`MCP inspector environment check: ${isMcpInspector}`);
 
 // @ts-ignore
-if ((isDirectEntry || isMcpServerEntry || isMcpInspector) && !global.__mcpServerStarted) {
+if ((isMcpServerEntry || isMcpapiEntry || isMcpInspector) && !global.__mcpServerStarted) {
   log("This is a valid entry point, calling main()");
   // @ts-ignore
   global.__mcpServerStarted = true;
   main();
 } else {
   log("This is NOT the entry point or server already started, main() will not be called");
-  log(`import.meta.url: ${import.meta.url}`);
   log(`process.argv[1]: ${process.argv[1]}`);
   // @ts-ignore
   log(`Server already started: ${global.__mcpServerStarted}`);

@@ -121,14 +121,10 @@ async function main() {
     fileLog(`Process arguments: ${JSON.stringify(process.argv)}`);
     fileLog(`Node.js version: ${process.version}`);
     fileLog(`Current working directory: ${process.cwd()}`);
-    
-    // 处理环境变量
-    processEnvironmentVariables();
+    // processEnvironmentVariables();
     
     // 设置进程处理程序
     setupProcessHandlers();
-    
-    // 检查是否在MCP Inspector环境中运行
     if (process.env.MCP_INSPECTOR === 'true') {
       fileLog("Running in MCP Inspector environment");
       

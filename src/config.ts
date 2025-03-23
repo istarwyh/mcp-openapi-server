@@ -77,11 +77,17 @@ export function getConfig(argv: Record<string, any> = {}): {
   defaults: Record<string, any>;
 } {
   const defaults = parseEnvironmentDefaults();
-  const headers = parseHeaders(argv.headers || process.env.API_HEADERS);
+  if (argv['agent-id']) {
+    defaults['agentId'] = argv['agent-id'];
+  }
+  if (argv['bearer-token'] || process.env.BEARER_TOKEN) {
+    process.env.API_HEADERS = `Authorization:Bearer ${argv['bearer-token'] || process.env.BEARER_TOKEN}`;
+  }
+  const headers = parseHeaders(process.env.API_HEADERS);
 
   const config = {
     apiBaseUrl: argv['api-base-url'] || process.env.API_BASE_URL,
-    openApiSpec: argv['openapi-spec'] || process.env.OPENAPI_SPEC_PATH,
+    openApiSpec: argv['openapi-spec-path'] || process.env.OPENAPI_SPEC_PATH,
     name: argv.name || process.env.SERVER_NAME,
     serverVersion: argv['server-version'] || process.env.SERVER_VERSION,
     headers: headers,
@@ -95,11 +101,10 @@ export function getConfig(argv: Record<string, any> = {}): {
   }
   if (!config.openApiSpec) {
     throw new Error(
-      "OpenAPI spec is required (--openapi-spec or OPENAPI_SPEC_PATH)",
+      "OpenAPI spec is required (--openapi-spec-path or OPENAPI_SPEC_PATH)",
     );
   }
 
-  
   if (typeof log === 'function') {
     log(`Environment defaults:`, defaults);
     log(`OpenAPI spec path: ${config.openApiSpec}`);

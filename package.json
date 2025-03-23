@@ -1,5 +1,5 @@
 {
-  "name": "@ivotoby/openapi-mcp-server",
+  "name": "@istarwyh/openapi-mcp-server",
   "version": "1.0.0",
   "description": "An MCP server that exposes OpenAPI endpoints as resources",
   "license": "MIT",
@@ -7,10 +7,11 @@
   "main": "./dist/bundle.js",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com:ivo-toby/contentful-mcp.git"
+    "url": "git+https://github.com:istarwyh/mcp-openapi-server.git"
   },
   "bin": {
-    "mcp-server-contentful": "./bin/mcp-server.js"
+    "mcpapi": "./bin/mcp-server.js",
+    "mcpapi-use-deepseek": "./bin/mcpapi-use-deepseek.js"
   },
   "files": [
     "dist"
