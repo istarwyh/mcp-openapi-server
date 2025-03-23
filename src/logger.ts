@@ -40,7 +40,7 @@ const defaultConfig: LogConfig = {
   level: LogLevel.DEBUG,
   filePath: path.resolve(process.cwd(), 'mcp-server-debug.log'),
   useConsole: true,
-  useStderr: true,
+  useStderr: false,
   maxMessageLength: 10000,  // 默认限制消息长度为10000字符
   includeTimestamp: true,
   includeProcessInfo: true
@@ -124,21 +124,9 @@ async function logToFile(level: LogLevel, message: string): Promise<void> {
     
     await appendFile(currentConfig.filePath, logLine, 'utf8');
   } catch (error) {
-    // 如果写入文件失败，尝试使用同步方法
-    try {
-      const timestamp = currentConfig.includeTimestamp ? new Date().toISOString() : '';
-      const levelName = LogLevel[level];
-      const logLine = timestamp 
-        ? `${timestamp} [${levelName}] ${message}\n` 
-        : `[${levelName}] ${message}\n`;
-      
-      appendFileSync(currentConfig.filePath, logLine, 'utf8');
-    } catch (syncError) {
-      // 如果同步方法也失败，尝试使用stderr
-      if (currentConfig.useStderr) {
-        process.stderr.write(`Failed to write to log file: ${error}\n`);
-        process.stderr.write(`Original message: ${message}\n`);
-      }
+    if (currentConfig.useStderr) {
+      process.stderr.write(`Failed to write to log file: ${error}\n`);
+      process.stderr.write(`Original message: ${message}\n`);
     }
   }
 }
@@ -206,8 +194,7 @@ function logWithLevel(level: LogLevel, message: string, ...args: any[]): void {
       
       isInitialized = true;
     } catch (error) {
-      // 如果初始化失败，使用stderr
-      process.stderr.write(`Failed to initialize logger on-demand: ${error}\n`);
+      // process.stderr.write(`Failed to initialize logger on-demand: ${error}\n`);
     }
   }
   

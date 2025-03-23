@@ -34,17 +34,6 @@ export interface Config {
 }
 
 /**
- * OpenAPI MCP 服务器配置接口
- */
-export interface OpenAPIMCPServerConfig {
-  name: string;
-  version: string;
-  apiBaseUrl: string;
-  openApiSpec: OpenAPIV3.Document | string;
-  headers?: Record<string, string>;
-}
-
-/**
  * HTTP 请求配置接口
  */
 export interface RequestConfig {

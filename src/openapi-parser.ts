@@ -8,10 +8,6 @@ import path from "path";
 import { OpenAPIV3 } from "openapi-types";
 import { log } from "./logger.js";
 
-// 类型守卫函数
-function isDocument(obj: any): obj is OpenAPIV3.Document {
-  return typeof obj === 'object' && 'openapi' in obj && 'info' in obj;
-}
 
 class ParameterProcessor {
   static createBaseSchema(): OpenAPIV3.SchemaObject {
@@ -114,45 +110,6 @@ class ParameterProcessor {
     return parameters;
   }
 
-  /**
-   * 递归处理嵌套属性
-   */
-  private static processNestedProperties(
-    parentName: string,
-    parentSchema: OpenAPIV3.SchemaObject,
-    inputSchema: OpenAPIV3.SchemaObject
-  ) {
-    if (!parentSchema.properties) return;
-
-    for (const [childName, childSchema] of Object.entries(parentSchema.properties)) {
-      if ('$ref' in childSchema) continue;
-
-      const fullName = `${parentName}_${childName}`;
-      const childType = childSchema.type || 'string';
-
-      if (childType === 'array') {
-        inputSchema.properties![fullName] = {
-          type: 'array',
-          description: childSchema.description || `${fullName} parameter`,
-        } as OpenAPIV3.ArraySchemaObject;
-      } else {
-        inputSchema.properties![fullName] = {
-          type: childType as OpenAPIV3.NonArraySchemaObjectType,
-          description: childSchema.description || `${fullName} parameter`,
-        };
-      }
-
-      // 递归处理多层嵌套
-      if (childType === 'object' && childSchema.properties) {
-        this.processNestedProperties(fullName, childSchema, inputSchema);
-      }
-
-      // 处理必填项
-      if (parentSchema.required?.includes(childName)) {
-        inputSchema.required!.push(fullName);
-      }
-    }
-  }
 
   static cleanSchema(schema: OpenAPIV3.SchemaObject) {
     if (Object.keys(schema.properties || {}).length === 0) {
@@ -164,27 +121,8 @@ class ParameterProcessor {
   }
 }
 
-// 文件加载工具函数
-async function loadSpecFile(filePath: string): Promise<OpenAPIV3.Document> {
-  const resolvedPath = path.resolve(process.cwd(), filePath);
-  log(`Loading OpenAPI spec from: ${resolvedPath}`);
-
-  if (!existsSync(resolvedPath)) {
-    throw new Error(`OpenAPI spec file not found: ${resolvedPath}`);
-  }
-
-  const specContent = await readFile(resolvedPath, "utf8");
-  log(`File read: ${specContent.length} bytes`);
-
-  if (resolvedPath.toLowerCase().endsWith(".yaml") || resolvedPath.toLowerCase().endsWith(".yml")) {
-    const yaml = await import("js-yaml");
-    return yaml.load(specContent) as OpenAPIV3.Document;
-  }
-  return JSON.parse(specContent);
-}
-
 /**
- * 加载 OpenAPI 规范文件（重构后）
+ * 加载 OpenAPI 规范文件
  */
 export async function loadOpenAPISpec(specPath: string | OpenAPIV3.Document): Promise<OpenAPIV3.Document> {
   if (typeof specPath === "string") {
@@ -275,9 +213,8 @@ export async function parseOpenAPISpec(specPath: string | OpenAPIV3.Document): P
         const operation = pathItem[method] as OpenAPIV3.OperationObject | undefined;
         // 跳过未定义的操作
         if (!operation) continue;
-        // 获取操作ID，如果没有则生成一个
-        const toolName = operation.description || operation.operationId || `${method}-${path.replace(/\//g, "_").replace(/^_/, "")}`;
-        const toolDescription = operation.summary || toolName;
+        const toolName = operation.summary || operation.operationId || `${method}-${path.replace(/\//g, "_").replace(/^_/, "")}`;
+        const toolDescription = operation.description || toolName;
         log(`operationId: ${toolName}`);
 
         // 创建工具元数据
@@ -308,8 +245,6 @@ export async function parseOpenAPISpec(specPath: string | OpenAPIV3.Document): P
         // 处理请求体参数
         if (metadata.requestBodySchema) {
           ParameterProcessor.processRequestBody(metadata.requestBodySchema, inputSchema);
-          
-          // 确保 required 字段被正确设置
           if (metadata.requestBodySchema.required) {
             inputSchema.required = metadata.requestBodySchema.required;
           }

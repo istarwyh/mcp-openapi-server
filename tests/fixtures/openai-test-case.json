@@ -3,8 +3,8 @@
   "expected": {
     "tools": [
       {
-        "name": "调用 OpenAI ChatCompletion API 兼容 API的LLM",
-        "description": "调用deepseek.etc",
+        "name": "调用deepseek.etc",
+        "description": "调用 OpenAI ChatCompletion API 兼容 API的LLM",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -31,7 +31,7 @@
               }
             },
             "stream": {
-              "type": "string",
+              "type": "boolean",
               "description": "是否流式输出"
             }
           },
@@ -39,7 +39,7 @@
         },
         "metadata": {
           "method": "POST",
-          "originalPath": "/chat/completions",
+          "originalPath": "/v1/chat/completions",
           "parameters": [],
           "requestBodySchema": {
             "title": "",
@@ -68,7 +68,7 @@
                 "description": "提示词信息"
               },
               "stream": {
-                "type": "string",
+                "type": "boolean",
                 "description": "是否流式输出"
               }
             },

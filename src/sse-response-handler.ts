@@ -1,10 +1,7 @@
-
-import axios, { AxiosResponse } from "axios";
-import { OpenAPIV3 } from "openapi-types";
-import { ExtendedTool, RequestConfig } from "./types.js";
+import { AxiosResponse } from "axios";
+import { ExtendedTool } from "./types.js";
 import { log } from "./logger.js";
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
-import { ErrorCode, JSONRPCMessage, McpError, SamplingMessage, SamplingMessageSchema } from '@modelcontextprotocol/sdk/types.js';
+import { ErrorCode, McpError,CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { extractContentFromQuotes, extractTextFromQuotes } from "./utils.js";
 
 export function parseSSEEvent(chunk: string): string {
@@ -16,12 +13,11 @@ export function parseSSEEvent(chunk: string): string {
 export async function handleSSEResponse(
   tool: ExtendedTool,
   response: AxiosResponse
-): Promise<SamplingMessage> {
+): Promise<CallToolResult> {
   const stream: string = response.data;
   const textChunks: string[] = extractTextFromQuotes(stream);
   const contentChunks: string[] = extractContentFromQuotes(stream);
   const lines: string[] = stream.trim().split('\n\n');
-  const contentArray: any[] = []
   let chunks = textChunks;
   if (textChunks.length > 0) {
     chunks = textChunks;
@@ -39,18 +35,14 @@ export async function handleSSEResponse(
         log("Received SSE chunk", rawChunk);
         const event: string = parseSSEEvent(rawChunk);
         allText = allText + event;
-        contentArray.push({
-          type: "text",
-          text: event
-        })
-      } catch (error: Error | unknown) {
+      } catch (error) {
         log("Error processing SSE chunk", error);
-        reject(new McpError(ErrorCode.InternalError, error.message));
+        reject(new McpError(ErrorCode.InternalError, error instanceof Error ? error.message : String(error)));
       }
     });
     resolve({
-      role: "assistant",
-      content: [{ type: 'text', text: allText }]
+      content: [{ type: 'text', text: allText }],
+      isError: false
     });
   });
 }
