@@ -2,6 +2,8 @@ import { parseOpenAPISpec } from '../src/openapi-parser';
 import * as fs from 'fs';
 import * as path from 'path';
 
+jest.mock('axios');
+
 describe('parseOpenAPISpec', () => {
   it('should correctly parse OpenAPI spec and return expected tools', async () => {
     const testCase = JSON.parse(
@@ -17,11 +19,11 @@ describe('parseOpenAPISpec', () => {
   });
 });
 
-describe('parseOpenAPISpec', () => {
+describe('parseOpenAPISpecFromWeb', () => {
   it('should correctly parse OpenAPI spec from web and return expected tools', async () => {
     const testCase = JSON.parse(
       fs.readFileSync(
-        path.join(process.cwd(), 'tests', 'fixtures', 'openai-test-case.json'),
+        path.join(process.cwd(), 'tests', 'fixtures', 'openai-test-case-web.json'),
         'utf-8'
       )
     );

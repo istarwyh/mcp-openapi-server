@@ -1,5 +1,5 @@
 {
-  "input": "https://github.com/istarwyh/mcp-openapi-server/blob/main/mcp_openapi/openAICompatibleForTest.openapi.json",
+  "input": "https://gitee.com/istarwyh/images/raw/master/openAICompatible.openapi.json",
   "expected": {
     "tools": [
       {
