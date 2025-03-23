@@ -2,6 +2,7 @@
  * 类型定义模块 - 集中管理所有类型定义
  */
 
+import { CallToolResult } from "@modelcontextprotocol/sdk/types";
 import { OpenAPIV3 } from "openapi-types";
 
 /**
@@ -43,3 +44,25 @@ export interface RequestConfig {
   data?: any;
   params?: any;
 }
+
+export const toolErrorResponse: (errorMsg: string) => CallToolResult = (errorMsg) => {
+  return {
+  content: [
+      {
+          type: "text",
+          text: errorMsg
+      }
+  ],
+  isError: true
+}};
+
+export const toolSuccessResponse: (text: string) => CallToolResult = (text) => {
+  return {
+  content: [
+      {
+          type: "text",
+          text: text
+      }
+  ],
+  isError: false
+}};

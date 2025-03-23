@@ -4,11 +4,11 @@
 
 import axios, { AxiosResponse } from "axios";
 import { OpenAPIV3 } from "openapi-types";
-import { ExtendedTool, RequestConfig } from "./types.js";
+import { ExtendedTool, RequestConfig, toolErrorResponse, toolSuccessResponse } from "./types.js";
 import { log } from "./logger.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { handleSSEResponse } from "./sse-response-handler.js";
-import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolResult, ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 
 /**
  * 递归地应用默认值到请求体
@@ -136,35 +136,27 @@ export async function executeToolCall(
   apiBaseUrl: string,
   headers: Record<string, string>,
   defaults: Record<string, any>
-): Promise<any> {
+): Promise<CallToolResult> {
   try {
     if (!tool.metadata || !tool.metadata.method || !tool.metadata.originalPath) {
       throw new Error(`Tool ${tool.name} is missing metadata or method or originalPath`);
     }
     const config: RequestConfig = buidlConfig();
     let response;
-    try {
-      response = await axios(config);
-      logResponse(response);
-      // 检查是否是 SSE 流
-      if (response.headers['content-type']?.includes('text/event-stream')) {
-        return handleSSEResponse(tool, response);
-      }
-      return {
-        content: [{type:'text',text:JSON.stringify(response.data)}],
-        id: tool.name,
-        timestamp: new Date().toISOString()
-      };
-    } catch (requestError: any) {
-      handleRequestError(requestError);
+    response = await axios(config);
+    logResponse(response);
+    // 检查是否是 SSE 流
+    if (response.headers['content-type']?.includes('text/event-stream')) {
+      return handleSSEResponse(response);
     }
+    return toolSuccessResponse(JSON.stringify(response.data));
   } catch (error: any) {
     const errorMessage = error instanceof Error 
       ? `Error executing tool ${tool.name}: ${error.message}\n${error.stack}`
       : `Error executing tool ${tool.name}: ${error}`;
       
     log(errorMessage);
-    throw new Error(errorMessage);
+    return toolErrorResponse(errorMessage);
   }
 
   function logResponse(response: AxiosResponse<any, any>) {

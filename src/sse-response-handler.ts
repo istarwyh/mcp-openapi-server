@@ -1,7 +1,7 @@
 import { AxiosResponse } from "axios";
-import { ExtendedTool } from "./types.js";
+import { ExtendedTool, toolErrorResponse, toolSuccessResponse } from "./types.js";
 import { log } from "./logger.js";
-import { ErrorCode, McpError,CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { extractContentFromQuotes, extractTextFromQuotes } from "./utils.js";
 
 export function parseSSEEvent(chunk: string): string {
@@ -11,7 +11,6 @@ export function parseSSEEvent(chunk: string): string {
 }
 // 将SSE 转成 Stdio,避免改造服务器端
 export async function handleSSEResponse(
-  tool: ExtendedTool,
   response: AxiosResponse
 ): Promise<CallToolResult> {
   const stream: string = response.data;
@@ -37,12 +36,9 @@ export async function handleSSEResponse(
         allText = allText + event;
       } catch (error) {
         log("Error processing SSE chunk", error);
-        reject(new McpError(ErrorCode.InternalError, error instanceof Error ? error.message : String(error)));
+        reject(toolErrorResponse(error instanceof Error ? error.message : String(error)));
       }
     });
-    resolve({
-      content: [{ type: 'text', text: allText }],
-      isError: false
-    });
+    resolve(toolSuccessResponse(allText));
   });
 }
