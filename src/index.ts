@@ -39,11 +39,15 @@ const argv = yargs(hideBin(process.argv))
   })
   .option('name', {
     type: 'string',
-    description: 'Server name',
+    description: 'MCP Server name',
   })
   .option('server-version', {
     type: 'string',
-    description: 'Server version',
+    description: 'MCP Server version',
+  })
+  .option('client', {
+    type: 'string',
+    description: 'MCP Client name, e.g. Cline',
   })
   .help()
   .version(false)
